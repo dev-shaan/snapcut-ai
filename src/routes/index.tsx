@@ -207,7 +207,7 @@ export function LandingPage() {
             Ready to clean up your images?
           </h2>
           <p className="relative mx-auto mt-3 max-w-md text-muted-foreground">
-            Get five free credits and see the difference on your own photos.
+            Get three free credits and see the difference on your own photos.
           </p>
           <Link to="/signup" className={cn(buttonClasses("primary", "lg"), "relative mt-8")}>
             Try SnapCut Free

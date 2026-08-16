@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { PageTransition } from "@/components/PageTransition";
-import { currentUser } from "@/lib/mock-data";
+import { useAuth } from "@/context/AuthContext";
 import { cn } from "@/lib/utils";
 
 const navItems = [
@@ -29,7 +29,22 @@ type AppLayoutProps = {
 };
 
 export function AppLayout({ title, subtitle, children }: AppLayoutProps) {
+  const { user, profile } = useAuth();
   const [open, setOpen] = useState(false);
+
+  const credits = profile?.credits ?? 0;
+  const rawName =
+    profile?.name ||
+    user?.user_metadata?.["name"] ||
+    user?.email?.split("@")[0] ||
+    "User";
+
+  const displayName = rawName.charAt(0).toUpperCase() + rawName.slice(1);
+  const nameParts = displayName.trim().split(/\s+/);
+  const initials =
+    nameParts.length >= 2
+      ? (nameParts[0][0] + nameParts[nameParts.length - 1][0]).toUpperCase()
+      : displayName.substring(0, 2).toUpperCase();
 
   const sidebar = (
     <nav aria-label="Dashboard" className="space-y-1">
@@ -70,15 +85,18 @@ export function AppLayout({ title, subtitle, children }: AppLayoutProps) {
           </div>
 
           <div className="flex items-center gap-3">
-            <span className="hidden rounded-full border border-primary/40 bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary sm:inline">
-              {currentUser.credits} credits
+            <span className="hidden rounded-full border border-primary/40 bg-primary/10 px-3 py-1 text-xs font-medium text-primary sm:inline">
+              {credits} {credits === 1 ? "credit" : "credits"}
             </span>
             <Link
               to="/profile"
               aria-label="Open profile"
-              className="grid h-9 w-9 place-items-center rounded-full bg-[image:var(--gradient-brand)] text-sm font-semibold text-primary-foreground transition-transform hover:scale-105"
+              className="flex items-center gap-2 rounded-full border border-border/80 bg-surface/60 py-1 pl-1 pr-3 text-xs font-medium transition-colors hover:border-primary/50 hover:bg-surface"
             >
-              {currentUser.initials}
+              <span className="grid h-7 w-7 place-items-center rounded-full bg-[image:var(--gradient-brand)] text-xs font-semibold text-primary-foreground">
+                {initials}
+              </span>
+              <span className="hidden sm:inline">{displayName.split(" ")[0]}</span>
             </Link>
           </div>
         </div>
@@ -111,3 +129,5 @@ export function AppLayout({ title, subtitle, children }: AppLayoutProps) {
     </div>
   );
 }
+
+export default AppLayout;

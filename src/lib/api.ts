@@ -1,3 +1,5 @@
+import { supabase } from "@/lib/supabase";
+
 const API_URL = (import.meta.env["VITE_API_URL"] as string | undefined) || "http://localhost:5000";
 
 export type HealthResponse = {
@@ -12,6 +14,26 @@ export type RemoveBackgroundResult = {
   public_id: string;
   original_url: string;
   processed_url: string;
+  remaining_credits?: number;
+};
+
+export type CreditsResponse = {
+  success: boolean;
+  credits: number;
+  plan: string;
+};
+
+export type HistoryRecord = {
+  id: string;
+  original_url: string;
+  processed_url: string;
+  status: string;
+  created_at: string;
+};
+
+export type HistoryResponse = {
+  success: boolean;
+  history: HistoryRecord[];
 };
 
 export class ApiError extends Error {
@@ -28,7 +50,6 @@ export class ApiError extends Error {
 
 /**
  * Perform a health check request to the Express backend.
- * Handles timeouts, network failures, and non-2xx responses gracefully.
  */
 export async function checkHealth(timeoutMs = 5000): Promise<HealthResponse> {
   const controller = new AbortController();
@@ -75,8 +96,64 @@ export async function checkHealth(timeoutMs = 5000): Promise<HealthResponse> {
 }
 
 /**
+ * Fetch authenticated user credits balance and plan from GET /api/credits
+ */
+export async function getCredits(): Promise<CreditsResponse> {
+  const { data: { session } } = await supabase.auth.getSession();
+  const token = session?.access_token;
+
+  if (!token) {
+    throw new ApiError("Authentication required to fetch credit balance", 401);
+  }
+
+  const response = await fetch(`${API_URL}/api/credits`, {
+    method: "GET",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  const data = await response.json();
+
+  if (!response.ok || !data.success) {
+    throw new ApiError(data.error || "Failed to fetch credits", response.status);
+  }
+
+  return data as CreditsResponse;
+}
+
+/**
+ * Fetch authenticated user processing history from GET /api/history
+ */
+export async function getHistory(): Promise<HistoryResponse> {
+  const { data: { session } } = await supabase.auth.getSession();
+  const token = session?.access_token;
+
+  if (!token) {
+    throw new ApiError("Authentication required to fetch processing history", 401);
+  }
+
+  const response = await fetch(`${API_URL}/api/history`, {
+    method: "GET",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  const data = await response.json();
+
+  if (!response.ok || !data.success) {
+    throw new ApiError(data.error || "Failed to fetch processing history", response.status);
+  }
+
+  return data as HistoryResponse;
+}
+
+/**
  * Send an image file to the Express backend for AI background removal.
- * Validates file type & size, and returns the transparent PNG cutout result.
+ * Attaches Supabase Bearer token for credit authorization.
  */
 export async function removeBackground(file: File): Promise<RemoveBackgroundResult> {
   // Validate file type
@@ -90,18 +167,31 @@ export async function removeBackground(file: File): Promise<RemoveBackgroundResu
     throw new ApiError("File size exceeds the 10MB limit. Please select a smaller image.");
   }
 
+  const { data: { session } } = await supabase.auth.getSession();
+  const token = session?.access_token;
+
+  if (!token) {
+    throw new ApiError("Authentication required to perform background removal", 401);
+  }
+
   const formData = new FormData();
   formData.append("image", file);
 
   try {
     const response = await fetch(`${API_URL}/api/remove-background`, {
       method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
       body: formData,
     });
 
     const data = await response.json();
 
     if (!response.ok || !data.success) {
+      if (response.status === 403 || data.error?.includes("Insufficient credits")) {
+        throw new ApiError("You're out of credits. Upgrade your plan to continue.", 403);
+      }
       throw new ApiError(
         data.error || `Background removal failed (Status ${response.status})`,
         response.status,

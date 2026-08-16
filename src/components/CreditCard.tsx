@@ -9,7 +9,8 @@ type CreditCardProps = {
 };
 
 export function CreditCard({ credits, total }: CreditCardProps) {
-  const pct = total > 0 ? Math.round((credits / total) * 100) : 0;
+  const safeCredits = Math.max(0, credits);
+  const pct = total > 0 ? Math.round((safeCredits / total) * 100) : 0;
 
   return (
     <section
@@ -20,11 +21,13 @@ export function CreditCard({ credits, total }: CreditCardProps) {
         <Sparkles className="h-4 w-4" aria-hidden="true" />
         <span className="text-xs font-semibold tracking-wide uppercase">Credits</span>
       </div>
-      <p className="mt-3 font-display text-2xl font-bold">{credits} Credits remaining</p>
+      <p className="mt-3 font-display text-2xl font-bold">
+        {safeCredits} {safeCredits === 1 ? "Credit" : "Credits"} remaining
+      </p>
       <div
         className="mt-4 h-2 w-full overflow-hidden rounded-full bg-muted"
         role="progressbar"
-        aria-valuenow={credits}
+        aria-valuenow={safeCredits}
         aria-valuemin={0}
         aria-valuemax={total}
       >
@@ -34,7 +37,7 @@ export function CreditCard({ credits, total }: CreditCardProps) {
         />
       </div>
       <p className="mt-2 text-xs text-muted-foreground">
-        {credits} of {total} credits left on your current plan
+        {safeCredits} of {total} credits left on your current plan
       </p>
       <Link to="/pricing" className={cn(buttonClasses("outline", "sm"), "mt-5 w-full")}>
         Upgrade Plan

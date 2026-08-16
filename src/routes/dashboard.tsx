@@ -8,13 +8,21 @@ import { ImagePreview } from "@/components/ImagePreview";
 import { CreditCard } from "@/components/CreditCard";
 import { BeforeAfter } from "@/components/BeforeAfter";
 import { Button, buttonClasses } from "@/components/Button";
-import { currentUser, historyItems } from "@/lib/mock-data";
-import { checkHealth, removeBackground, type RemoveBackgroundResult } from "@/lib/api";
+import {
+  checkHealth,
+  getHistory,
+  removeBackground,
+  type HistoryRecord,
+  type RemoveBackgroundResult,
+} from "@/lib/api";
+import { useAuth } from "@/context/AuthContext";
 import { cn } from "@/lib/utils";
 
 type Stage = "idle" | "selected" | "processing" | "done" | "error";
 
 export function DashboardPage() {
+  const { user, profile, refreshProfile } = useAuth();
+
   const [stage, setStage] = useState<Stage>("idle");
   const [backendStatus, setBackendStatus] = useState<"loading" | "connected" | "offline">(
     "loading",
@@ -24,6 +32,16 @@ export function DashboardPage() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [resultData, setResultData] = useState<RemoveBackgroundResult | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [recentHistory, setRecentHistory] = useState<HistoryRecord[]>([]);
+
+  const fetchRecentHistory = async () => {
+    try {
+      const res = await getHistory();
+      setRecentHistory(res.history || []);
+    } catch {
+      setRecentHistory([]);
+    }
+  };
 
   useEffect(() => {
     let isMounted = true;
@@ -38,6 +56,9 @@ export function DashboardPage() {
           setBackendStatus("offline");
         }
       });
+
+    fetchRecentHistory();
+
     return () => {
       isMounted = false;
     };
@@ -75,6 +96,8 @@ export function DashboardPage() {
     try {
       const result = await removeBackground(selectedFile);
       setResultData(result);
+      await refreshProfile();
+      await fetchRecentHistory();
       setStage("done");
     } catch (err: unknown) {
       const msg =
@@ -120,9 +143,13 @@ export function DashboardPage() {
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
+  const userName = profile?.name || user?.user_metadata?.["name"] || "Creator";
+  const userCredits = profile?.credits ?? 0;
+  const userPlan = profile?.plan ? profile.plan.toUpperCase() : "FREE";
+
   return (
     <AppLayout
-      title={`Welcome back, ${currentUser.name.split(" ")[0]}`}
+      title={`Welcome back, ${userName.split(" ")[0]}`}
       subtitle="Upload an image and SnapCut AI will cut the background out for you."
     >
       <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-border bg-surface/40 px-3 py-1 text-xs text-muted-foreground">
@@ -187,13 +214,19 @@ export function DashboardPage() {
                 <AlertCircle className="h-6 w-6" aria-hidden="true" />
               </div>
               <h3 className="font-display text-lg font-semibold text-foreground">
-                Background removal failed
+                {errorMessage?.includes("out of credits")
+                  ? "Insufficient credits"
+                  : "Background removal failed"}
               </h3>
               <p className="mx-auto max-w-md text-sm text-muted-foreground">
                 {errorMessage || "An unexpected error occurred while processing your image."}
               </p>
               <div className="flex justify-center gap-3 pt-2">
-                {selectedFile ? (
+                {errorMessage?.includes("out of credits") ? (
+                  <Link to="/pricing" className={buttonClasses("primary", "md")}>
+                    Upgrade Plan
+                  </Link>
+                ) : selectedFile ? (
                   <Button size="md" onClick={startProcessing}>
                     Try again
                   </Button>
@@ -207,9 +240,9 @@ export function DashboardPage() {
 
           <div className="grid gap-4 sm:grid-cols-3">
             {[
-              { label: "Images processed", value: currentUser.imagesProcessed },
-              { label: "Credits remaining", value: currentUser.credits },
-              { label: "Current plan", value: currentUser.plan },
+              { label: "Images processed", value: recentHistory.length },
+              { label: "Credits remaining", value: userCredits },
+              { label: "Current plan", value: userPlan },
             ].map((stat) => (
               <div key={stat.label} className="rounded-2xl border border-border bg-surface/50 p-5">
                 <p className="text-xs tracking-wide text-muted-foreground uppercase">
@@ -222,7 +255,7 @@ export function DashboardPage() {
         </section>
 
         <aside className="space-y-6">
-          <CreditCard credits={currentUser.credits} total={currentUser.totalCredits} />
+          <CreditCard credits={userCredits} total={3} />
 
           <section
             aria-label="Recent images"
@@ -234,22 +267,31 @@ export function DashboardPage() {
                 View all
               </Link>
             </div>
-            <ul className="mt-4 space-y-3">
-              {historyItems.slice(0, 3).map((item) => (
-                <li key={item.id} className="flex items-center gap-3">
-                  <img
-                    src={item.thumbnail}
-                    alt={item.filename}
-                    loading="lazy"
-                    className="h-10 w-10 shrink-0 rounded-lg object-cover"
-                  />
-                  <div className="min-w-0">
-                    <p className="truncate text-sm">{item.filename}</p>
-                    <p className="text-xs text-muted-foreground">{item.date}</p>
-                  </div>
-                </li>
-              ))}
-            </ul>
+            {recentHistory.length === 0 ? (
+              <p className="mt-4 text-xs text-muted-foreground">No cutouts processed yet.</p>
+            ) : (
+              <ul className="mt-4 space-y-3">
+                {recentHistory.slice(0, 3).map((item) => (
+                  <li key={item.id} className="flex items-center gap-3">
+                    <img
+                      src={item.processed_url || item.original_url}
+                      alt="Recent cutout"
+                      loading="lazy"
+                      className="h-10 w-10 shrink-0 rounded-lg object-cover"
+                    />
+                    <div className="min-w-0">
+                      <p className="truncate text-sm">Cutout #{item.id.substring(0, 8)}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {new Date(item.created_at).toLocaleDateString("en-US", {
+                          month: "short",
+                          day: "numeric",
+                        })}
+                      </p>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
             <Link to="/history" className={cn(buttonClasses("ghost", "sm"), "mt-4 w-full")}>
               <History className="h-4 w-4" aria-hidden="true" />
               Full history

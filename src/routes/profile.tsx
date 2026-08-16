@@ -1,12 +1,46 @@
-import { Link } from "react-router-dom";
-import { CalendarDays, LogOut, Mail, ShieldCheck, User } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { CalendarDays, LogOut, ShieldCheck, User } from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
 import { CreditCard } from "@/components/CreditCard";
 import { Field } from "@/components/Field";
-import { Button, buttonClasses } from "@/components/Button";
-import { currentUser } from "@/lib/mock-data";
+import { Button } from "@/components/Button";
+import { useAuth } from "@/context/AuthContext";
 
 export function ProfilePage() {
+  const navigate = useNavigate();
+  const { user, profile, logout } = useAuth();
+
+  const handleLogout = async () => {
+    await logout();
+    navigate("/", { replace: true });
+  };
+
+  const rawName =
+    profile?.name ||
+    user?.user_metadata?.["name"] ||
+    user?.email?.split("@")[0] ||
+    "User";
+
+  const displayName = rawName.charAt(0).toUpperCase() + rawName.slice(1);
+  const displayEmail = user?.email || profile?.email || "";
+
+  const nameParts = displayName.trim().split(/\s+/);
+  const initials =
+    nameParts.length >= 2
+      ? (nameParts[0][0] + nameParts[nameParts.length - 1][0]).toUpperCase()
+      : displayName.substring(0, 2).toUpperCase();
+
+  const credits = profile?.credits ?? 0;
+  const totalCredits = 3;
+  const plan = profile?.plan ? profile.plan.toUpperCase() : "FREE";
+
+  const memberSince = user?.created_at
+    ? new Date(user.created_at).toLocaleDateString("en-US", {
+        month: "short",
+        year: "numeric",
+      })
+    : "Recently";
+
   return (
     <AppLayout title="Profile" subtitle="Your account details and plan.">
       <div className="grid gap-6 lg:grid-cols-[1fr_20rem]">
@@ -14,26 +48,26 @@ export function ProfilePage() {
           <section className="rounded-2xl border border-border bg-surface/50 p-6">
             <div className="flex items-center gap-4">
               <span className="grid h-16 w-16 place-items-center rounded-full bg-[image:var(--gradient-brand)] font-display text-xl font-bold text-primary-foreground">
-                {currentUser.initials}
+                {initials}
               </span>
               <div className="min-w-0">
-                <h2 className="font-display text-xl font-semibold">{currentUser.name}</h2>
-                <p className="truncate text-sm text-muted-foreground">{currentUser.email}</p>
+                <h2 className="font-display text-xl font-semibold">{displayName}</h2>
+                <p className="truncate text-sm text-muted-foreground">{displayEmail}</p>
               </div>
             </div>
 
             <dl className="mt-6 grid gap-4 sm:grid-cols-3">
               {[
-                { icon: ShieldCheck, label: "Plan", value: currentUser.plan },
+                { icon: ShieldCheck, label: "Plan", value: plan },
                 {
                   icon: User,
-                  label: "Images processed",
-                  value: String(currentUser.imagesProcessed),
+                  label: "Credits remaining",
+                  value: String(credits),
                 },
                 {
                   icon: CalendarDays,
                   label: "Member since",
-                  value: currentUser.memberSince,
+                  value: memberSince,
                 },
               ].map((row) => (
                 <div
@@ -57,20 +91,14 @@ export function ProfilePage() {
               onSubmit={(e) => e.preventDefault()}
               aria-label="Account details form"
             >
-              <Field label="Name" id="profile-name" type="text" defaultValue={currentUser.name} />
+              <Field label="Name" id="profile-name" type="text" defaultValue={displayName} readOnly />
               <Field
                 label="Email"
                 id="profile-email"
                 type="email"
-                defaultValue={currentUser.email}
+                defaultValue={displayEmail}
+                readOnly
               />
-              <div className="flex flex-wrap gap-3">
-                <Button type="submit">Save changes</Button>
-                <Button type="button" variant="ghost">
-                  <Mail className="h-4 w-4" aria-hidden="true" />
-                  Change password
-                </Button>
-              </div>
             </form>
           </section>
 
@@ -79,15 +107,15 @@ export function ProfilePage() {
             <p className="mt-1 text-sm text-muted-foreground">
               Signing out ends this session on this device only.
             </p>
-            <Link to="/login" className={`${buttonClasses("danger", "md")} mt-4`}>
+            <Button variant="danger" size="md" className="mt-4" onClick={handleLogout}>
               <LogOut className="h-4 w-4" aria-hidden="true" />
               Log out
-            </Link>
+            </Button>
           </section>
         </div>
 
         <aside className="space-y-6">
-          <CreditCard credits={currentUser.credits} total={currentUser.totalCredits} />
+          <CreditCard credits={credits} total={totalCredits} />
         </aside>
       </div>
     </AppLayout>

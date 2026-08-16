@@ -1,18 +1,34 @@
 import { useState } from "react";
 import { Link, NavLink } from "react-router-dom";
-import { Menu, X } from "lucide-react";
+import { Menu, Sparkles, X } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { buttonClasses } from "@/components/Button";
+import { useAuth } from "@/context/AuthContext";
 import { cn } from "@/lib/utils";
 
-const links = [
+const publicLinks = [
   { to: "/", label: "Home" },
   { to: "/dashboard", label: "Dashboard" },
   { to: "/pricing", label: "Pricing" },
 ] as const;
 
 export function Navbar() {
+  const { user, profile } = useAuth();
   const [open, setOpen] = useState(false);
+
+  const credits = profile?.credits ?? 0;
+  const rawName =
+    profile?.name ||
+    user?.user_metadata?.["name"] ||
+    user?.email?.split("@")[0] ||
+    "User";
+
+  const displayName = rawName.charAt(0).toUpperCase() + rawName.slice(1);
+  const nameParts = displayName.trim().split(/\s+/);
+  const initials =
+    nameParts.length >= 2
+      ? (nameParts[0][0] + nameParts[nameParts.length - 1][0]).toUpperCase()
+      : displayName.substring(0, 2).toUpperCase();
 
   return (
     <header className="sticky top-0 z-50 border-b border-border/60 glass">
@@ -23,7 +39,7 @@ export function Navbar() {
         <Logo />
 
         <ul className="hidden items-center gap-1 md:flex">
-          {links.map((link) => (
+          {publicLinks.map((link) => (
             <li key={link.to}>
               <NavLink
                 to={link.to}
@@ -43,13 +59,33 @@ export function Navbar() {
           ))}
         </ul>
 
-        <div className="hidden items-center gap-2 md:flex">
-          <Link to="/login" className={buttonClasses("ghost", "sm")}>
-            Login
-          </Link>
-          <Link to="/signup" className={buttonClasses("primary", "sm")}>
-            Try SnapCut Free
-          </Link>
+        <div className="hidden items-center gap-3 md:flex">
+          {user ? (
+            <div className="flex items-center gap-3">
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/40 bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
+                <Sparkles className="h-3 w-3" aria-hidden="true" />
+                {credits} {credits === 1 ? "credit" : "credits"}
+              </span>
+              <Link
+                to="/profile"
+                className="flex items-center gap-2 rounded-full border border-border/80 bg-surface/60 py-1 pl-1 pr-3 text-xs font-medium transition-colors hover:border-primary/50 hover:bg-surface"
+              >
+                <span className="grid h-7 w-7 place-items-center rounded-full bg-[image:var(--gradient-brand)] text-xs font-semibold text-primary-foreground">
+                  {initials}
+                </span>
+                <span>{displayName.split(" ")[0]}</span>
+              </Link>
+            </div>
+          ) : (
+            <>
+              <Link to="/login" className={buttonClasses("ghost", "sm")}>
+                Login
+              </Link>
+              <Link to="/signup" className={buttonClasses("primary", "sm")}>
+                Try SnapCut Free
+              </Link>
+            </>
+          )}
         </div>
 
         <button
@@ -70,7 +106,7 @@ export function Navbar() {
         )}
       >
         <ul className="space-y-1 px-4 py-4">
-          {links.map((link) => (
+          {publicLinks.map((link) => (
             <li key={link.to}>
               <Link
                 to={link.to}
@@ -82,20 +118,32 @@ export function Navbar() {
             </li>
           ))}
           <li className="flex gap-2 pt-2">
-            <Link
-              to="/login"
-              onClick={() => setOpen(false)}
-              className={cn(buttonClasses("outline", "sm"), "flex-1")}
-            >
-              Login
-            </Link>
-            <Link
-              to="/signup"
-              onClick={() => setOpen(false)}
-              className={cn(buttonClasses("primary", "sm"), "flex-1")}
-            >
-              Try Free
-            </Link>
+            {user ? (
+              <Link
+                to="/profile"
+                onClick={() => setOpen(false)}
+                className={cn(buttonClasses("outline", "sm"), "w-full text-center")}
+              >
+                Profile ({displayName.split(" ")[0]} · {credits} {credits === 1 ? "credit" : "credits"})
+              </Link>
+            ) : (
+              <>
+                <Link
+                  to="/login"
+                  onClick={() => setOpen(false)}
+                  className={cn(buttonClasses("outline", "sm"), "flex-1")}
+                >
+                  Login
+                </Link>
+                <Link
+                  to="/signup"
+                  onClick={() => setOpen(false)}
+                  className={cn(buttonClasses("primary", "sm"), "flex-1")}
+                >
+                  Try Free
+                </Link>
+              </>
+            )}
           </li>
         </ul>
       </div>

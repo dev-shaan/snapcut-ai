@@ -2,6 +2,10 @@ import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import uploadRoutes from "./routes/uploadRoutes.js";
+import dbRoutes from "./routes/dbRoutes.js";
+import authRoutes from "./routes/authRoutes.js";
+import creditRoutes from "./routes/creditRoutes.js";
+import historyRoutes from "./routes/historyRoutes.js";
 
 dotenv.config();
 
@@ -24,6 +28,10 @@ app.use(express.urlencoded({ extended: true, limit: "1mb" }));
 
 // Register Routes
 app.use("/api", uploadRoutes);
+app.use("/api", dbRoutes);
+app.use("/api", authRoutes);
+app.use("/api", creditRoutes);
+app.use("/api", historyRoutes);
 
 // Health Check Route
 app.get("/api/health", (req, res) => {
