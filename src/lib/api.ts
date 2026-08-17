@@ -1,6 +1,16 @@
 import { supabase } from "@/lib/supabase";
 
-const API_URL = (import.meta.env["VITE_API_URL"] as string | undefined) || "http://localhost:5000";
+const envApiUrl = import.meta.env["VITE_API_URL"] as string | undefined;
+
+if (import.meta.env.PROD && !envApiUrl) {
+  console.warn(
+    "[SnapCut Production Warning] VITE_API_URL environment variable is missing in production build. Falling back to default URL.",
+  );
+}
+
+const API_URL = envApiUrl || "http://localhost:5000";
+
+
 
 export type HealthResponse = {
   status: string;
@@ -35,6 +45,31 @@ export type HistoryResponse = {
   success: boolean;
   history: HistoryRecord[];
 };
+
+export type CreateOrderResponse = {
+  success: boolean;
+  order: {
+    id: string;
+    amount: number;
+    currency: string;
+  };
+  keyId: string;
+};
+
+export type VerifyPaymentPayload = {
+  razorpay_order_id: string;
+  razorpay_payment_id: string;
+  razorpay_signature: string;
+};
+
+export type VerifyPaymentResponse = {
+  success: boolean;
+  message: string;
+  alreadyProcessed?: boolean;
+  credits: number;
+  plan: string;
+};
+
 
 export class ApiError extends Error {
   public override name = "ApiError";
@@ -211,3 +246,76 @@ export async function removeBackground(file: File): Promise<RemoveBackgroundResu
     throw new ApiError("An unexpected error occurred during background removal.");
   }
 }
+
+/**
+ * Create a Razorpay test mode payment order via POST /api/payments/create-order.
+ * Server determines amount and credits based strictly on planId.
+ */
+export async function createPaymentOrder(planId: string): Promise<CreateOrderResponse> {
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  const token = session?.access_token;
+
+  if (!token) {
+    throw new ApiError("Please sign in to upgrade your plan.", 401);
+  }
+
+  const response = await fetch(`${API_URL}/api/payments/create-order`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ planId }),
+  });
+
+  const data = await response.json();
+
+  if (!response.ok || !data.success) {
+    throw new ApiError(
+      data.error || "Failed to create payment order with server",
+      response.status,
+    );
+  }
+
+  return data as CreateOrderResponse;
+}
+
+/**
+ * Verify Razorpay payment signature via POST /api/payments/verify-payment.
+ * Server verifies HMAC signature, marks payment paid, and adds credits atomically.
+ */
+export async function verifyPayment(
+  payload: VerifyPaymentPayload,
+): Promise<VerifyPaymentResponse> {
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  const token = session?.access_token;
+
+  if (!token) {
+    throw new ApiError("Authentication required for payment verification", 401);
+  }
+
+  const response = await fetch(`${API_URL}/api/payments/verify-payment`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const data = await response.json();
+
+  if (!response.ok || !data.success) {
+    throw new ApiError(
+      data.error || "Payment verification failed. No credits were added.",
+      response.status,
+    );
+  }
+
+  return data as VerifyPaymentResponse;
+}
+

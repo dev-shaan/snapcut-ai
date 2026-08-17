@@ -7,9 +7,19 @@ type PricingCardProps = {
   plan: Plan;
   yearly?: boolean;
   onSelect?: (plan: Plan) => void;
+  isLoading?: boolean;
+  loadingText?: string;
+  disabled?: boolean;
 };
 
-export function PricingCard({ plan, yearly = false, onSelect }: PricingCardProps) {
+export function PricingCard({
+  plan,
+  yearly = false,
+  onSelect,
+  isLoading = false,
+  loadingText,
+  disabled = false,
+}: PricingCardProps) {
   const price = yearly ? plan.priceYearly : plan.priceMonthly;
   const suffix = plan.priceMonthly === 0 ? "" : yearly ? "/year" : "/month";
 
@@ -50,9 +60,11 @@ export function PricingCard({ plan, yearly = false, onSelect }: PricingCardProps
         className="mt-7 w-full"
         variant={plan.highlighted ? "primary" : "outline"}
         onClick={() => onSelect?.(plan)}
+        disabled={disabled || isLoading}
       >
-        {plan.cta}
+        {isLoading && loadingText ? loadingText : plan.cta}
       </Button>
     </article>
   );
 }
+

@@ -1,7 +1,11 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { toast } from "sonner";
 import { SiteLayout } from "@/components/SiteLayout";
 import { PricingCard } from "@/components/PricingCard";
-import { plans } from "@/lib/mock-data";
+import { plans, type Plan } from "@/lib/mock-data";
+import { createPaymentOrder, verifyPayment } from "@/lib/api";
+import { useAuth } from "@/context/AuthContext";
 import { cn } from "@/lib/utils";
 
 const faqs = [
@@ -23,8 +27,124 @@ const faqs = [
   },
 ];
 
+function loadRazorpayScript(): Promise<boolean> {
+  return new Promise((resolve) => {
+    if (typeof window !== "undefined" && (window as unknown as { Razorpay?: unknown }).Razorpay) {
+      resolve(true);
+      return;
+    }
+    const script = document.createElement("script");
+    script.src = "https://checkout.razorpay.com/v1/checkout.js";
+    script.async = true;
+    script.onload = () => resolve(true);
+    script.onerror = () => resolve(false);
+    document.body.appendChild(script);
+  });
+}
+
 export function PricingPage() {
   const [yearly, setYearly] = useState(false);
+  const [processingPlanId, setProcessingPlanId] = useState<string | null>(null);
+  const [loadingText, setLoadingText] = useState<string>("");
+
+  const navigate = useNavigate();
+  const { user, profile, refreshProfile } = useAuth();
+
+  const handleSelectPlan = async (selectedPlan: Plan) => {
+    if (selectedPlan.id === "free") {
+      if (user) {
+        navigate("/dashboard");
+      } else {
+        navigate("/signup");
+      }
+      return;
+    }
+
+    if (!user) {
+      toast.info("Please sign in or create an account to upgrade your plan.");
+      navigate("/login");
+      return;
+    }
+
+    if (processingPlanId) return;
+
+    setProcessingPlanId(selectedPlan.id);
+    setLoadingText("Opening secure checkout...");
+
+    try {
+      const isLoaded = await loadRazorpayScript();
+      if (!isLoaded) {
+        throw new Error("Unable to load Razorpay payment gateway SDK. Please check your internet connection.");
+      }
+
+      // Step 1: Create Order via Express Backend
+      const orderRes = await createPaymentOrder(selectedPlan.id);
+
+      // Step 2: Open Razorpay Test Checkout Modal
+      const options = {
+        key: orderRes.keyId,
+        amount: orderRes.order.amount,
+        currency: orderRes.order.currency,
+        name: "SnapCut AI",
+        description: `${selectedPlan.name} Plan (${selectedPlan.credits})`,
+        order_id: orderRes.order.id,
+        prefill: {
+          name: profile?.name || "",
+          email: user.email || "",
+        },
+        theme: {
+          color: "#6366f1",
+        },
+        handler: async (response: {
+          razorpay_order_id: string;
+          razorpay_payment_id: string;
+          razorpay_signature: string;
+        }) => {
+          setLoadingText("Verifying payment...");
+          try {
+            const verifyRes = await verifyPayment({
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature: response.razorpay_signature,
+            });
+
+            toast.success(
+              verifyRes.message ||
+                `Payment successful! ${verifyRes.credits} credits added.`,
+            );
+
+            await refreshProfile();
+            navigate("/dashboard");
+          } catch (verifyErr: unknown) {
+            const errorMsg =
+              verifyErr instanceof Error
+                ? verifyErr.message
+                : "Payment could not be verified. No credits were added.";
+            toast.error(errorMsg);
+          } finally {
+            setProcessingPlanId(null);
+            setLoadingText("");
+          }
+        },
+        modal: {
+          ondismiss: () => {
+            toast.info("Payment checkout canceled.");
+            setProcessingPlanId(null);
+            setLoadingText("");
+          },
+        },
+      };
+
+      const razorpayInstance = new (window as unknown as { Razorpay: new (opts: typeof options) => { open: () => void } }).Razorpay(options);
+      razorpayInstance.open();
+    } catch (err: unknown) {
+      const errorMsg =
+        err instanceof Error ? err.message : "Failed to initialize payment checkout.";
+      toast.error(errorMsg);
+      setProcessingPlanId(null);
+      setLoadingText("");
+    }
+  };
 
   return (
     <SiteLayout>
@@ -66,7 +186,15 @@ export function PricingPage() {
 
         <div className="mt-14 grid gap-6 md:grid-cols-3">
           {plans.map((plan) => (
-            <PricingCard key={plan.id} plan={plan} yearly={yearly} />
+            <PricingCard
+              key={plan.id}
+              plan={plan}
+              yearly={yearly}
+              onSelect={handleSelectPlan}
+              isLoading={processingPlanId === plan.id}
+              loadingText={loadingText}
+              disabled={Boolean(processingPlanId && processingPlanId !== plan.id)}
+            />
           ))}
         </div>
 

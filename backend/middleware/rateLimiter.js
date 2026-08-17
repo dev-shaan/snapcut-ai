@@ -17,3 +17,16 @@ export const apiLimiter = rateLimit({
   },
   statusCode: 429,
 });
+
+export const paymentLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 20, // Limit each IP to 20 payment order creations per window
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    error: "Too many payment requests from this IP. Please try again later.",
+  },
+  statusCode: 429,
+});
+

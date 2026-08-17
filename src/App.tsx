@@ -12,6 +12,8 @@ import HistoryPage from "@/routes/history";
 import PricingPage from "@/routes/pricing";
 import ProfilePage from "@/routes/profile";
 
+import { Toaster } from "@/components/ui/sonner";
+
 export function App() {
   return (
     <ErrorBoundary>
@@ -34,10 +36,12 @@ export function App() {
             {/* 404 Fallback */}
             <Route path="*" element={<NotFound />} />
           </Routes>
+          <Toaster position="top-center" richColors />
         </BrowserRouter>
       </AuthProvider>
     </ErrorBoundary>
   );
 }
+
 
 export default App;
