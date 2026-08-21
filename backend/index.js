@@ -12,6 +12,7 @@ dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+const HOST = "0.0.0.0";
 const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:5173";
 
 const isProduction = process.env.NODE_ENV === "production";
@@ -74,7 +75,7 @@ app.use((err, req, res, next) => {
   });
 });
 
-app.listen(PORT, () => {
-  console.log(`[SnapCut AI Backend] Server running on http://localhost:${PORT}`);
+app.listen(PORT, HOST, () => {
+  console.log(`[SnapCut AI Backend] Server running on http://${HOST}:${PORT}`);
 });
 
