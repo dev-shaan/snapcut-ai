@@ -145,7 +145,7 @@ export const plans: Plan[] = [
 export const currentUser = {
   name: "Aarav Mehta",
   email: "aarav.mehta@example.com",
-  initials: "AM",
+  initials: "BM",
   plan: "Free",
   credits: 3,
   totalCredits: 3,

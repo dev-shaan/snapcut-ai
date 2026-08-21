@@ -20,9 +20,7 @@ if (!SUPABASE_URL || !SUPABASE_SECRET_KEY) {
 const supabase = createClient(SUPABASE_URL, SUPABASE_SECRET_KEY);
 
 async function main() {
-  console.log("==================================================");
   console.log("Starting Razorpay TEST MODE Backend Verification");
-  console.log("==================================================\n");
 
   let testPassed = 0;
   let testFailed = 0;
